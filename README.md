@@ -1,144 +1,63 @@
-<p align="center">
-  <img src="banner.png" alt="Headent Client" width="100%">
-</p>
+# Headent Client (React)
 
-<p align="center">
-  <img src="https://img.shields.io/badge/platform-Android%20%7C%20Android%20TV-3ddc84" alt="Platform">
-  <img src="https://img.shields.io/badge/built%20with-Kotlin%20%C2%B7%20Compose%20%C2%B7%20libVLC-7f52ff" alt="Built with">
-  <img src="https://img.shields.io/badge/languages-31-1d9e75" alt="Languages">
-  <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
-</p>
+Web and TV client for [Tvheadend](https://tvheadend.org/) — live TV, EPG TV guide, recordings (DVR), and radio, built with **React, TypeScript, Vite, and Tailwind CSS**. Rewritten from the original Kotlin Android client while faithfully preserving its full suite of features, data models, remote control key bindings, and modern navy/teal visual styling.
 
-# Headent Client
+> **Disclaimer:** Headent Client is an independent client application and is **not** an official product of the Tvheadend project. The app contains **no** TV channels or media content — it connects to a Tvheadend server that you configure yourself. A built-in demo mode is provided for instant testing and evaluation.
 
-Android client for [Tvheadend](https://tvheadend.org/) — live TV, EPG, recordings (DVR)
-and radio, built for **Android TV boxes and phones**. Written in Kotlin Multiplatform with
-Jetpack Compose and libVLC.
+## Key Features
 
-> **Disclaimer:** Headent Client is an independent client application and is **not** an
-> official product of the Tvheadend project. The app contains **no** TV channels or
-> media content — it only connects to a Tvheadend server that **you** have access to and
-> configure yourself. A running Tvheadend server and valid credentials are required.
+- **Live TV Streaming:** Connect to Tvheadend HTTP/HTSP streams with automatic channel logo (picon) caching and subchannel number support (e.g. 5.1).
+- **Dual Interface Modes:**
+  - **TV Mode (Android TV / Set-Top Box):** Home launcher with Hero now-playing card, favourites row, and high-contrast D-pad remote navigable tiles.
+  - **Phone / Tablet Mode:** Fluid mobile interface with responsive bottom navigation tabs.
+- **Visual Themes:**
+  - **Modern Theme:** Navy/teal dark glass palette with glowing accents and progress bars.
+  - **Classic Theme:** Clean, high-density layout.
+- **EPG Schedule Grid (TV Guide):**
+  - Continuous multi-channel timeline with time intervals and red live on-air indicator line.
+  - Multi-day picker (Today, Tomorrow, +2 days, +3 days).
+  - Detailed programme dialog: summary, DVB genre classification, age ratings, series link URI, and direct one-click recording.
+- **DVR Recordings & Archive:**
+  - Categorized archive: Recent recordings, scheduled upcoming, automated timer rules (AutoRec), and genre categories (Movies, Series, Sports, Documentaries).
+  - Recording playback with persistent resume positions.
+  - Stop running recordings and delete finished files.
+- **Radio Stations:**
+  - DVB service-type filtered radio channels with dedicated now-playing line and progress.
+  - Persistent **Mini Radio Bar** across all screens while listening.
+- **In-App Video Player:**
+  - Custom controls with Quick Zap bar showing now/next programme and time progress.
+  - Channel switching with Up/Down arrow keys or CH+/-.
+  - Audio and subtitle track picker.
+  - Teletext simulator overlay with Fastext 4-colour buttons.
+  - Timeshift seek bar for recordings.
+- **TV Remote Hotkeys:**
+  - **Red (1):** Live TV Channels
+  - **Green (2):** Radio Stations
+  - **Yellow (3):** Archive / DVR
+  - **Blue (4):** Settings
+  - **Guide (G):** EPG TV Guide
+  - **0–9:** Direct channel number jumping
+- **Parental Lock:** 4-digit PIN security to lock channels or settings.
+- **Multi-Server & Backup:**
+  - Configure multiple Tvheadend server profiles with connection test probe (`/api/serverinfo`).
+  - Export and import full app configuration via JSON backup files.
 
-## Features
+## Tech Stack
 
-- Live TV from your Tvheadend server (HTTP and HTSP)
-- EPG grid (TV guide) with fast scrolling and instant now/next from cache
-- **Recording (DVR):** schedule and cancel from the guide, a programme detail or
-  the player; stop running recordings and delete finished ones from the archive
-- **Recording indicators:** badges for recording / recorded / scheduled, and a red
-  dot on channels currently being recorded
-- **DVR profile per server** — choose which recording profile the server uses,
-  or leave it to the server
-- Recording playback with resume and a categorized archive
-- Seeking inside recordings and the archive — drag the bar, or move a marker in 30 s
-  steps with the remote (holding an arrow accelerates and scales with the recording's
-  length; the jump happens once, when the button is released)
-- Timeshift on live TV over HTSP (pause and skip within the server's buffer)
-- Audio tracks labeled by language (not generic "Track 1 / 2 / 3")
-- DVB subtitle support with a dedicated renderer
-- Compact, scrollable audio/subtitle picker (tuned for TV remotes)
-- **Radio channels**, told apart from TV by DVB service type (as Kodi does),
-  with tag filtering and a remembered group; stations have their own guide, a
-  now-playing line with progress and *Next*, favourites, hidden stations and
-  numbering from 1 in the order shown
-- **Start with the last channel (TV)** — resumes the channel or radio station you
-  were last watching, with the full channel list and groups loaded
-- **Teletext** (EN 300 706) decoded by the app itself, over HTSP and HTTP — colour,
-  mosaic graphics, subpages, Fastext links and all European character sets;
-  remote or touch controls
-- **Favourites row on the Android TV home screen** — a row of favourite channels with
-  picons and now/next programme, published through the TV provider like Netflix or
-  YouTube rows; OK starts the channel.
-- **Favourites as launcher shortcuts** — favourite channels are published as app
-  shortcuts with their picon (long-press the app icon on a phone; launchers such as
-  Projectivity show them as tiles on Android TV); `headentclient://channel/<uuid>`
-  deep links open the player on any channel.
-- **Favourites in your order** — numbered 1…n inside the Favourites group,
-  reorderable with the remote on TV and by dragging on the phone; the group is
-  remembered after a restart and used by the player
-- **Hidden channels** can be brought back from the *Hidden channels* group in the player
-- Picons (channel logos)
-- Channel switching by number, channel list, zapping
-- **Colour and media keys on TV remotes** — red opens Channels, green Radio, yellow the
-  Archive and blue Settings from anywhere in the app (inside teletext they follow Fastext);
-  STOP, PLAY/PAUSE, rewind/fast-forward and next/previous work in the player, in recordings
-  and in the timeshift buffer
-- **Options that are off by default** — switch a channel with a single OK, let the TV home
-  tiles open the channel list right away, and pick the recording profile for each recording;
-  recording can also be started from the player's channel list (hold OK)
-- A [remote control guide](https://headentclient.com/remote.php) on the website explains
-  every key, screen by screen, for both the modern and the classic interface
-- Optional parental lock with PIN (configurable grace period, scope: channels / settings)
-- Deinterlacing (automatic or manual: Bob, Yadif, Yadif 2x, X)
-- Audio output options: passthrough to TV/AVR on Android TV, OpenSL ES mode on phones
-- Optional automatic frame-rate switching (HDR mode changes off by default)
-- Optional modern UI mode (home screen, player and navy/teal theme) — classic look remains the default
-- Multiple servers, backup & restore of settings
-- Optimized for Android TV / set-top boxes (D-pad remote) and phones, including
-  recovery from standby on Amlogic boxes (sound comes back, no freezes)
-- Localized into 31 languages (see below)
-- No ads, no tracking, no telemetry
+- **Framework:** React 18, TypeScript, Vite
+- **Styling:** Tailwind CSS v4
+- **Icons:** Lucide Icons
+- **Persistence:** LocalStorage with schema migrations and JSON export/import
 
-## Requirements
+## Getting Started
 
-- A running [Tvheadend](https://tvheadend.org/) server you have access to
-- Android 6.0 (API 23) or newer; Android TV or phone
+```bash
+# Install dependencies
+npm install
 
-Recording requires an account with DVR rights on the server. Timeshift is an
-HTSP feature and is not available over the HTTP path.
+# Start development server (port 3000)
+npm run dev
 
-## Localization
-
-The app and the [project website](https://headentclient.com/) are localized into
-**31 languages**:
-
-Arabic, Bengali, Bulgarian, Chinese (Simplified), Croatian, Czech, Dutch, English,
-French, German, Greek, Hindi, Hungarian, Indonesian, Italian, Japanese, Korean,
-Persian, Polish, Portuguese, Romanian, Russian, Serbian, Slovak, Slovenian, Spanish,
-Thai, Turkish, Ukrainian, Urdu, Vietnamese.
-
-Translations are community-assisted; corrections and improvements are welcome via issues
-or pull requests.
-
-## Project structure
-
-This is a Kotlin Multiplatform project. The **Android app is the actively developed
-client**; an iOS target exists and shares the core but is less complete.
-
+# Build for production
+npm run build
 ```
-shared/        KMP core: API client (Ktor, Basic/Digest auth), models,
-               HTSP, DVR classifier, secure storage
-androidApp/    Jetpack Compose UI — one APK for phone and Android TV
-iosApp/        SwiftUI (work in progress)
-```
-
-## Building (Android)
-
-The Gradle wrapper is part of the repository, so a fresh clone builds without installing
-Gradle first. CI builds run via GitHub Actions on each push.
-
-```
-# Debug APK (installable for testing)
-./gradlew :androidApp:assembleDebug
-
-# Release APK (R8/minified)
-./gradlew :androidApp:assembleRelease
-```
-
-Release signing reads `keystore.properties` from the project root (not committed). If the
-file is absent (e.g. CI), the release build falls back to debug signing so the APK is
-still installable for testing.
-
-## Privacy
-
-The app stores connection settings (incl. credentials) only locally on the device and
-sends them solely to the Tvheadend server you configure. No data is sent to the developer
-or any third party. See the
-[Privacy Policy](https://headentclient.com/privacy-policy.html) and
-[Terms of Use](https://headentclient.com/terms-of-use.html). Both are also available
-in-app under Settings → Information.
-
-## License
-
-Released under the [MIT License](LICENSE).

@@ -1,0 +1,8 @@
+{
+  "name": "Headent Client",
+  "description": "Tvheadend client for Live TV, EPG guide, DVR recordings, and radio with modern TV and mobile interfaces.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,117 +1,82 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <!-- Display over other apps: an app with this permission may start itself
-         from the background (including after boot). Without it Android blocks starting from the background. -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- Android TV: leanback is not required, the app runs on both mobile and TV -->
-    <uses-feature android:name="android.software.leanback" android:required="false" />
-    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <!-- M716: WakeKeeperService — keeps the app from being frozen while "start on wake" is on -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- M452: WifiLock/WakeLock during playback — without them Android switches
-         the chip into power-saving mode on Wi-Fi devices and the data arrives
-         in bursts once a second (stuttering stream). -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-
-    <!-- M580: our own row (preview channel) on the Android TV home screen -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
     <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
     <application
-        android:largeHeap="true"
-        android:name=".TvhApplication"
-        android:dataExtractionRules="@xml/backup_rules"
-        android:fullBackupContent="@xml/backup_rules_legacy"
-        android:label="@string/app_name"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:name="sk.tvhclient.android.TvhApplication"
+        android:allowBackup="true"
         android:banner="@drawable/tv_banner"
-        android:usesCleartextTraffic="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Headent">
 
+        <!-- Main Standalone Application -->
         <activity
-            android:name=".MainActivity"
+            android:name="sk.tvhclient.android.MainActivity"
             android:exported="true"
-            android:banner="@drawable/tv_banner"
             android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|keyboardHidden">
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <!-- Launcher on the Android TV home screen -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-            <!-- M573: deep link to a channel (favourites shortcuts, launchers, adb):
-                 headentclient://channel/<uuid> -->
+
+            <!-- Channel Deep Links (headentclient://channel/<uuid>) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="headentclient" android:host="channel" />
+                <data
+                    android:host="channel"
+                    android:scheme="headentclient" />
             </intent-filter>
         </activity>
 
         <activity
-            android:name=".PlayerActivity"
+            android:name="sk.tvhclient.android.PlayerActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:exported="false"
-            android:screenOrientation="fullUser"
-            android:supportsPictureInPicture="true"
             android:resizeableActivity="true"
-            android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden|screenLayout"
-            android:theme="@android:style/Theme.Black.NoTitleBar" />
+            android:supportsPictureInPicture="true" />
 
-        <receiver
-            android:name=".BootReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
-            </intent-filter>
-        </receiver>
-        <service
-            android:name=".RadioPlayerService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
-        <!-- M716: only while "Start app on wake from sleep" is on; see WakeKeeperService -->
-        <service
-            android:name=".WakeKeeperService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Opens the TV app when the set-top box wakes from standby (user option). Without it Android freezes the app and it never learns about the wake-up." />
-        </service>
-        <!-- M580-fix: tile images for the row on the TV home screen (only PNGs from cache/tvhome) -->
-        <provider
-            android:name=".TvHomeImageProvider"
-            android:authorities="${applicationId}.tvhome"
+        <!-- 1. TV Input Framework Setup Activity -->
+        <activity
+            android:name="sk.tvhclient.android.tif.TvInputSetupActivity"
             android:exported="true"
-            android:grantUriPermissions="false" />
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
+            android:label="@string/tif_setup_title"
+            android:theme="@style/Theme.Headent">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
+        </activity>
+
+        <!-- 2. TV Input Framework Service (Live Channels Source) -->
+        <service
+            android:name="sk.tvhclient.android.tif.TvhTvInputService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_TV_INPUT">
+            <intent-filter>
+                <action android:name="android.media.tv.TvInputService" />
+            </intent-filter>
             <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
+                android:name="android.media.tv.input"
+                android:resource="@xml/tv_input_service" />
+        </service>
+
     </application>
+
 </manifest>

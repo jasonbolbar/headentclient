@@ -1,0 +1,15 @@
+plugins {
+}
+
+tasks.register("assembleDebug", Exec) {
+    commandLine "npm", "run", "build"
+}
+
+tasks.register("build", Exec) {
+    commandLine "npm", "run", "build"
+}
+
+tasks.register("lint", Exec) {
+    commandLine "npx", "tsc", "--noEmit"
+}
+
