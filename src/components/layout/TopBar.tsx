@@ -4,10 +4,11 @@ import { Tv, Monitor, Smartphone, RefreshCw, CalendarDays, Sparkles } from 'luci
 
 interface TopBarProps {
   onOpenEpg?: () => void;
+  onOpenLiveChannelsPreview?: () => void;
   title?: string;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ onOpenEpg, title }) => {
+export const TopBar: React.FC<TopBarProps> = ({ onOpenEpg, onOpenLiveChannelsPreview, title }) => {
   const { settings, updateSettings, refreshData, loading } = useTvheadend();
 
   return (
@@ -30,6 +31,17 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenEpg, title }) => {
       </div>
 
       <div className="flex items-center gap-1.5">
+        {onOpenLiveChannelsPreview && (
+          <button
+            onClick={onOpenLiveChannelsPreview}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500 text-xs font-semibold text-teal-300 hover:text-slate-950 border border-teal-500/40 transition"
+            title="Ver simulación de Live Channels (TIF)"
+          >
+            <Tv className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Simular Live Channels (TIF)</span>
+          </button>
+        )}
+
         {onOpenEpg && (
           <button
             onClick={onOpenEpg}

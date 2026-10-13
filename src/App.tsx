@@ -12,6 +12,8 @@ import { DvrScreen } from './components/screens/DvrScreen';
 import { SettingsScreen } from './components/screens/SettingsScreen';
 import { PlayerScreen } from './components/screens/PlayerScreen';
 import { PinModal } from './components/common/PinModal';
+import { VirtualRemote } from './components/layout/VirtualRemote';
+import { LiveChannelsPreviewModal } from './components/screens/LiveChannelsPreviewModal';
 
 const AppContent: React.FC = () => {
   const {
@@ -30,6 +32,9 @@ const AppContent: React.FC = () => {
   // Parental lock modal
   const [pinTarget, setPinTarget] = useState<'settings' | 'channel' | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  // Live Channels (TIF) simulation modal
+  const [showLiveChannelsPreview, setShowLiveChannelsPreview] = useState(false);
 
   // TV Remote & keyboard shortcut bridge
   useEffect(() => {
@@ -86,10 +91,11 @@ const AppContent: React.FC = () => {
     <div className={`w-full h-screen flex flex-col overflow-hidden ${settings.colorMode === 'light' ? 'bg-slate-100 text-slate-900' : 'bg-[#0B1220] text-white'}`}>
       {/* Top Header / TV Clock */}
       {settings.uiMode === 'tv' ? (
-        <TvTopClock />
+        <TvTopClock onOpenLiveChannelsPreview={() => setShowLiveChannelsPreview(true)} />
       ) : (
         <TopBar
           onOpenEpg={() => setCurrentSection('epg')}
+          onOpenLiveChannelsPreview={() => setShowLiveChannelsPreview(true)}
           title={
             currentSection === 'channels' ? 'TV Channels' :
             currentSection === 'radio' ? 'Radio Stations' :
@@ -190,6 +196,13 @@ const AppContent: React.FC = () => {
             setPendingAction(null);
           }}
         />
+      )}
+      {/* Virtual Android TV Remote Control */}
+      <VirtualRemote />
+
+      {/* Live Channels (TIF) Native Android TV Simulation View */}
+      {showLiveChannelsPreview && (
+        <LiveChannelsPreviewModal onClose={() => setShowLiveChannelsPreview(false)} />
       )}
     </div>
   );
