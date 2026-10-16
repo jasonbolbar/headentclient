@@ -46,6 +46,7 @@ class TvhApi(private val server: TvhServer) {
                 if (sArray != null) {
                     for (s in 0 until sArray.length()) services.add(sArray.getString(s))
                 }
+                val isRadio = item.optBoolean("is_radio", false)
                 list.add(
                     Channel(
                         uuid = uuid,
@@ -55,7 +56,8 @@ class TvhApi(private val server: TvhServer) {
                         iconPublicUrl = icon,
                         tags = emptyList(),
                         services = services,
-                        enabled = enabled
+                        enabled = enabled,
+                        isRadioByServices = isRadio
                     )
                 )
             }
@@ -82,11 +84,22 @@ class TvhApi(private val server: TvhServer) {
                 val eventId = item.optLong("eventId", i.toLong())
                 val channelUuid = item.optString("channelUuid")
                 val title = item.optString("title", "")
-                val subtitle = item.optString("subtitle", null)
-                val description = item.optString("description", null)
+                val subtitle = item.optString("subtitle", "")
+                val summary = item.optString("summary", "")
+                val description = item.optString("description", "")
                 val start = item.optLong("start", 0L)
                 val stop = item.optLong("stop", 0L)
-                val genre = if (item.has("genre")) item.optInt("genre") else null
+                val episodeOnscreen = item.optString("episodeOnscreen", "")
+
+                val genreList = mutableListOf<Int>()
+                if (item.has("genre")) {
+                    val gArray = item.optJSONArray("genre")
+                    if (gArray != null) {
+                        for (g in 0 until gArray.length()) genreList.add(gArray.getInt(g))
+                    } else {
+                        genreList.add(item.optInt("genre"))
+                    }
+                }
 
                 list.add(
                     EpgEvent(
@@ -94,10 +107,12 @@ class TvhApi(private val server: TvhServer) {
                         channelUuid = channelUuid,
                         title = title,
                         subtitle = subtitle,
+                        summary = summary,
                         description = description,
                         start = start,
                         stop = stop,
-                        genre = genre
+                        genre = genreList,
+                        episodeOnscreen = episodeOnscreen
                     )
                 )
             }

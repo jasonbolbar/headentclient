@@ -68,9 +68,9 @@ class TvhTvInputService : TvInputService() {
         // Surface Lifecycle Management
         // =========================================================================
 
-        override fun onSetDisplaySurface(surface: Surface?) {
+        override fun onSetSurface(surface: Surface?): Boolean {
             this.surface = surface
-            val player = mediaPlayer ?: return
+            val player = mediaPlayer ?: return false
             val vout = player.vlcVout
 
             if (surface != null) {
@@ -89,6 +89,7 @@ class TvhTvInputService : TvInputService() {
                     Log.d(TAG, "Video Surface detached from libVLC.")
                 }
             }
+            return true
         }
 
         // =========================================================================
@@ -174,8 +175,9 @@ class TvhTvInputService : TvInputService() {
 
             for (track in audioTracks) {
                 if (track.id < 0) continue
+                val lang = extractLanguage(track.name)
                 val builder = TvTrackInfo.Builder(TvTrackInfo.TYPE_AUDIO, track.id.toString())
-                    .setLanguage(track.language ?: "und")
+                    .setLanguage(lang)
                     .setDescription(track.name ?: "Audio ${track.id}")
                 trackInfoList.add(builder.build())
             }
@@ -186,8 +188,9 @@ class TvhTvInputService : TvInputService() {
 
             for (track in spuTracks) {
                 if (track.id < 0) continue
+                val lang = extractLanguage(track.name)
                 val builder = TvTrackInfo.Builder(TvTrackInfo.TYPE_SUBTITLE, track.id.toString())
-                    .setLanguage(track.language ?: "und")
+                    .setLanguage(lang)
                     .setDescription(track.name ?: "Subtitles ${track.id}")
                 trackInfoList.add(builder.build())
             }
@@ -224,6 +227,13 @@ class TvhTvInputService : TvInputService() {
             } else {
                 notifyTrackSelected(TvTrackInfo.TYPE_SUBTITLE, null)
             }
+        }
+
+        private fun extractLanguage(name: String?): String {
+            if (name.isNullOrBlank()) return "und"
+            val regex = Regex("\\[([a-zA-Z]{2,3})\\]")
+            val match = regex.find(name)
+            return match?.groupValues?.get(1)?.lowercase() ?: "und"
         }
 
         override fun onSelectTrack(type: Int, trackId: String?): Boolean {

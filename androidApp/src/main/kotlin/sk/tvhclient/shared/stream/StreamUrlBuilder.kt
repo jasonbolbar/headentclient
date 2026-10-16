@@ -18,7 +18,8 @@ object StreamUrlBuilder {
         return "$scheme://$auth${server.host}:${server.port}/stream/channel/$channelUuid$prof"
     }
 
-    fun piconUrl(server: TvhServer, iconPath: String): String {
+    fun piconUrl(server: TvhServer, iconPath: String?): String? {
+        if (iconPath.isNullOrBlank()) return null
         if (iconPath.startsWith("http://") || iconPath.startsWith("https://")) {
             return iconPath
         }
