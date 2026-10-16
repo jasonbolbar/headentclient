@@ -31,15 +31,24 @@ El proyecto cuenta con dos vertientes:
 
 ### Paso 2: Compilar el APK de Android TV
 
-Desde la terminal en el equipo de desarrollo:
+#### Opción 1: Mediante Android Studio (Más Sencillo)
+1. Abre la carpeta del proyecto en **Android Studio**.
+2. Espera a que Gradle sincronice los plugins y dependencias (`com.android.application`, `org.videolan.android:libvlc-all`, Jetpack Compose).
+3. Ve al menú superior: **Build** ➔ **Build Bundle(s) / APK(s)** ➔ **Build APK(s)**.
+4. Al finalizar la compilación, pulsa en la notificación **locate** para encontrar el archivo `androidApp-debug.apk`.
 
-```bash
-# Otorgar permisos de ejecución al wrapper de Gradle (si estás en Linux/macOS)
-chmod +x gradlew
+#### Opción 2: Desde la Terminal con Gradle Wrapper
+1. Si compilas por terminal por primera vez en macOS / Linux, asegúrate de tener el archivo `local.properties` en la raíz del proyecto apuntando a tu Android SDK:
+   ```properties
+   sdk.dir=/Users/TU_USUARIO/Library/Android/sdk
+   ```
+   *(O define la variable de entorno `export ANDROID_HOME=$HOME/Library/Android/sdk`)*.
 
-# Compilar el APK en modo Debug para Android TV
-./gradlew :androidApp:assembleDebug
-```
+2. Ejecuta la compilación del módulo `:androidApp`:
+   ```bash
+   chmod +x gradlew
+   ./gradlew :androidApp:assembleDebug
+   ```
 
 El archivo generado estará ubicado en:
 ```
