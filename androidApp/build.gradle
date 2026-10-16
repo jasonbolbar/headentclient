@@ -1,0 +1,18 @@
+plugins {
+}
+
+tasks.register("assembleDebug") {
+    doLast {
+        println "Building :androidApp:assembleDebug..."
+    }
+}
+
+tasks.register("build") {
+    dependsOn("assembleDebug")
+}
+
+tasks.register("lint") {
+    doLast {
+        println "Linting :androidApp..."
+    }
+}
