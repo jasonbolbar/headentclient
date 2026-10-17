@@ -38,6 +38,7 @@ fun ServerConfigScreen(
     var user by remember { mutableStateOf(initialServer?.user ?: "") }
     var pass by remember { mutableStateOf(initialServer?.pass ?: "") }
     var profile by remember { mutableStateOf(initialServer?.profile ?: "pass") }
+    var useSoftwareDecoding by remember { mutableStateOf(initialServer?.useSoftwareDecoding ?: true) }
 
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
@@ -52,7 +53,8 @@ fun ServerConfigScreen(
         htspPort = htspPort.toIntOrNull() ?: 9982,
         user = user.trim(),
         pass = pass,
-        profile = profile.ifBlank { "pass" }
+        profile = profile.ifBlank { "pass" },
+        useSoftwareDecoding = useSoftwareDecoding
     )
 
     Box(
@@ -232,6 +234,45 @@ fun ServerConfigScreen(
                         unfocusedBorderColor = Color(0xFF475569)
                     )
                 )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Software Decoding Toggle
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Decodificación por Software (CPU)",
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "Recomendado: mantiene el audio y vídeo perfectamente sincronizados al cambiar de pista",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 12.sp
+                        )
+                    }
+                    Switch(
+                        checked = useSoftwareDecoding,
+                        onCheckedChange = { useSoftwareDecoding = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFF0284C7)
+                        )
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

@@ -16,7 +16,8 @@ class ServerStore(private val prefs: SharedPreferences) {
             htspPort = prefs.getInt("server_htsp_port", 9982),
             user = prefs.getString("server_user", "") ?: "",
             pass = prefs.getString("server_pass", "") ?: "",
-            profile = prefs.getString("server_profile", "pass") ?: "pass"
+            profile = prefs.getString("server_profile", "pass") ?: "pass",
+            useSoftwareDecoding = prefs.getBoolean("server_sw_decoding", true)
         )
     }
 
@@ -30,6 +31,7 @@ class ServerStore(private val prefs: SharedPreferences) {
             .putString("server_user", server.user)
             .putString("server_pass", server.pass)
             .putString("server_profile", server.profile)
+            .putBoolean("server_sw_decoding", server.useSoftwareDecoding)
             .apply()
     }
 }

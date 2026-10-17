@@ -8,7 +8,8 @@ data class TvhServer(
     val htspPort: Int = 9982,
     val user: String = "",
     val pass: String = "",
-    val profile: String = "pass"
+    val profile: String = "pass",
+    val useSoftwareDecoding: Boolean = true
 )
 
 data class Channel(

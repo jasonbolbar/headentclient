@@ -110,9 +110,36 @@ class TvhTvInputService : TvInputService() {
         // Channel Tuning
         // =========================================================================
 
+        private fun blankSurface(surf: Surface?) {
+            if (surf == null || !surf.isValid) return
+            try {
+                val canvas = surf.lockCanvas(null)
+                canvas.drawColor(android.graphics.Color.BLACK)
+                surf.unlockCanvasAndPost(canvas)
+            } catch (e: Exception) {
+                try {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        val canvas = surf.lockHardwareCanvas()
+                        canvas.drawColor(android.graphics.Color.BLACK)
+                        surf.unlockCanvasAndPost(canvas)
+                    }
+                } catch (e2: Exception) {
+                    Log.d(TAG, "Surface blank notice: ${e2.message}")
+                }
+            }
+        }
+
         override fun onTune(channelUri: Uri): Boolean {
             Log.i(TAG, "onTune requested for URI: $channelUri")
             notifyVideoUnavailable(TvInputManager.VIDEO_UNAVAILABLE_REASON_BUFFERING)
+
+            // Immediately clear the frozen frame of the previous channel to black
+            mediaPlayer?.stop()
+            if (isSurfaceAttached) {
+                mediaPlayer?.vlcVout?.detachViews()
+                isSurfaceAttached = false
+            }
+            blankSurface(surface)
 
             val channelUuid = queryChannelUuid(channelUri)
             if (channelUuid.isNullOrBlank()) {
@@ -135,7 +162,7 @@ class TvhTvInputService : TvInputService() {
             )
 
             Log.d(TAG, "Playing live stream URL for channel $channelUuid: $streamUrl")
-            startPlayback(streamUrl)
+            startPlayback(server, streamUrl)
             return true
         }
 
@@ -152,27 +179,46 @@ class TvhTvInputService : TvInputService() {
             return null
         }
 
-        private fun startPlayback(streamUrl: String) {
+        private fun startPlayback(server: sk.tvhclient.shared.model.TvhServer, streamUrl: String) {
             val player = mediaPlayer ?: return
             val vlc = libVLC ?: return
 
             try {
                 player.stop()
                 currentMedia?.release()
+                currentMedia = null
+
+                // Ensure surface is cleanly attached and sized to 16:9
+                if (surface != null && surface?.isValid == true) {
+                    if (!isSurfaceAttached) {
+                        val dm = context.resources.displayMetrics
+                        player.vlcVout.setWindowSize(dm.widthPixels, dm.heightPixels)
+                        player.vlcVout.setVideoSurface(surface, null)
+                        player.vlcVout.attachViews()
+                        isSurfaceAttached = true
+                    }
+                }
+
+                val useSw = server.useSoftwareDecoding
+                val hwEnabled = !useSw
 
                 currentMedia = Media(vlc, Uri.parse(streamUrl)).apply {
-                    setHWDecoderEnabled(true, false)
+                    setHWDecoderEnabled(hwEnabled, false)
                     addOption(":network-caching=1500")
                     addOption(":clock-jitter=0")
-                    addOption(":clock-synchro=0")
+                    addOption(":clock-synchro=1")
                     addOption(":aspect-ratio=16:9")
                     addOption(":spdif")
                     addOption(":aout=android_audiotrack")
+                    if (useSw) {
+                        addOption(":avcodec-hw=none")
+                    }
                 }
 
                 player.media = currentMedia
                 player.aspectRatio = "16:9"
                 player.scale = 0f
+                player.audioDelay = 0L
                 player.play()
             } catch (e: Exception) {
                 Log.e(TAG, "Error starting libVLC playback: ${e.message}", e)
@@ -368,6 +414,7 @@ class TvhTvInputService : TvInputService() {
                 TvTrackInfo.TYPE_AUDIO -> {
                     val id = trackId?.toIntOrNull() ?: -1
                     player.setAudioTrack(id)
+                    player.audioDelay = 0L
                     notifyTrackSelected(TvTrackInfo.TYPE_AUDIO, trackId)
                     true
                 }

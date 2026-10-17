@@ -75,28 +75,26 @@ object TvhSyncManager {
         val cr = context.contentResolver
         val channelIdMap = mutableMapOf<String, Long>()
 
-        // 1. Obtener canales existentes de esta fuente
-        val existingChannels = mutableMapOf<String, Long>()
-        val projection = arrayOf(TvContract.Channels._ID, TvContract.Channels.COLUMN_INTERNAL_PROVIDER_DATA)
-        val uri = TvContract.buildChannelsUriForInput(inputId)
-
+        // 1. Limpieza total de canales anteriores para este inputId
+        // Esto elimina cualquier canal duplicado previo y garantiza una lista limpia
         try {
-            cr.query(uri, projection, null, null, null)?.use { cursor ->
-                val idCol = cursor.getColumnIndexOrThrow(TvContract.Channels._ID)
-                val uuidCol = cursor.getColumnIndexOrThrow(TvContract.Channels.COLUMN_INTERNAL_PROVIDER_DATA)
-                while (cursor.moveToNext()) {
-                    val dbId = cursor.getLong(idCol)
-                    val uuid = cursor.getString(uuidCol)
-                    if (!uuid.isNullOrBlank()) {
-                        existingChannels[uuid] = dbId
-                    }
-                }
-            }
+            val channelsUri = TvContract.buildChannelsUriForInput(inputId)
+            val deleted = cr.delete(channelsUri, null, null)
+            Log.i(TAG, "Canales anteriores limpiados: $deleted")
         } catch (e: Exception) {
-            Log.w(TAG, "Error consultando canales existentes: ${e.message}")
+            try {
+                val deleted = cr.delete(
+                    TvContract.Channels.CONTENT_URI,
+                    "${TvContract.Channels.COLUMN_INPUT_ID} = ?",
+                    arrayOf(inputId)
+                )
+                Log.i(TAG, "Canales anteriores limpiados (fallback): $deleted")
+            } catch (e2: Exception) {
+                Log.w(TAG, "Aviso limpiando canales anteriores: ${e2.message}")
+            }
         }
 
-        // 2. Insertar o actualizar canales sin bloqueos
+        // 2. Insertar canales limpios en TvContract
         for (channel in channels) {
             val isRadio = channel.isRadioByService
             val values = ContentValues().apply {
@@ -116,16 +114,8 @@ object TvhSyncManager {
             }
 
             try {
-                val existingId = existingChannels[channel.uuid]
-                val rowId: Long = if (existingId != null) {
-                    val channelUri = TvContract.buildChannelUri(existingId)
-                    cr.update(channelUri, values, null, null)
-                    existingId
-                } else {
-                    val insertedUri = cr.insert(TvContract.Channels.CONTENT_URI, values)
-                    insertedUri?.let { ContentUris.parseId(it) } ?: -1L
-                }
-
+                val insertedUri = cr.insert(TvContract.Channels.CONTENT_URI, values)
+                val rowId = insertedUri?.let { ContentUris.parseId(it) } ?: -1L
                 if (rowId > 0) {
                     channelIdMap[channel.uuid] = rowId
                 }
