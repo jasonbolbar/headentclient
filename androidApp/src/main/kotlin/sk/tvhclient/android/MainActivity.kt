@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,10 +19,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
+import kotlinx.coroutines.launch
 import sk.tvhclient.android.tif.TvInputSetupActivity
+import sk.tvhclient.android.tif.TvhSyncManager
 import sk.tvhclient.android.tif.TvhSyncWorker
 import sk.tvhclient.android.ui.ServerConfigScreen
 import sk.tvhclient.shared.Tvh
@@ -40,6 +38,7 @@ class MainActivity : ComponentActivity() {
                 var showConfigScreen by remember { mutableStateOf(server == null) }
                 var isSyncing by remember { mutableStateOf(false) }
                 var syncMessage by remember { mutableStateOf<String?>(null) }
+                val coroutineScope = rememberCoroutineScope()
 
                 if (showConfigScreen) {
                     ServerConfigScreen(
@@ -48,12 +47,12 @@ class MainActivity : ComponentActivity() {
                             server = savedServer
                             showConfigScreen = false
                             Toast.makeText(
-                                this,
+                                this@MainActivity,
                                 "Servidor ${savedServer.name} guardado correctamente",
                                 Toast.LENGTH_SHORT
                             ).show()
                             // Schedule periodic sync
-                            TvhSyncWorker.schedulePeriodicSync(this)
+                            TvhSyncWorker.schedulePeriodicSync(this@MainActivity)
                         },
                         onCancel = if (server != null) {
                             { showConfigScreen = false }
@@ -187,8 +186,8 @@ class MainActivity : ComponentActivity() {
                                         server?.let { currentServer ->
                                             isSyncing = true
                                             syncMessage = "Iniciando búsqueda de canales..."
-                                            lifecycleScope.launch {
-                                                val (success, message) = sk.tvhclient.android.tif.TvhSyncManager.syncNow(
+                                            coroutineScope.launch {
+                                                val (success, message) = TvhSyncManager.syncNow(
                                                     context = this@MainActivity,
                                                     server = currentServer,
                                                     onProgress = { step -> syncMessage = step }
@@ -196,7 +195,7 @@ class MainActivity : ComponentActivity() {
                                                 isSyncing = false
                                                 syncMessage = message
                                                 if (success) {
-                                                    sk.tvhclient.android.tif.TvhSyncWorker.schedulePeriodicSync(this@MainActivity)
+                                                    TvhSyncWorker.schedulePeriodicSync(this@MainActivity)
                                                 }
                                             }
                                         }
