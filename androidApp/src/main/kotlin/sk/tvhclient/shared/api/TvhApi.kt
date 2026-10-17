@@ -92,7 +92,9 @@ class TvhApi(private val server: TvhServer) {
 
     fun epgWindow(untilSec: Long): List<EpgEvent> {
         val nowSec = System.currentTimeMillis() / 1000L
-        val conn = openConnection("/api/epg/events/grid?start=0&limit=9999&filter=[{\"name\":\"stop\",\"op\":\"ge\",\"value\":$nowSec},{\"name\":\"start\",\"op\":\"le\",\"value\":$untilSec}]")
+        val filterJson = "[{\"name\":\"stop\",\"op\":\"ge\",\"value\":$nowSec},{\"name\":\"start\",\"op\":\"le\",\"value\":$untilSec}]"
+        val encodedFilter = java.net.URLEncoder.encode(filterJson, "UTF-8")
+        val conn = openConnection("/api/epg/events/grid?start=0&limit=3000&filter=$encodedFilter")
         try {
             if (conn.responseCode != 200) return emptyList()
             val text = conn.inputStream.bufferedReader().use(BufferedReader::readText)

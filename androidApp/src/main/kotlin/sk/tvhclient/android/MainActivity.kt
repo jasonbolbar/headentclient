@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -183,20 +184,19 @@ class MainActivity : ComponentActivity() {
                                 // Sincronizar Canales TIF Button
                                 Button(
                                     onClick = {
-                                        isSyncing = true
-                                        syncMessage = "Sincronizando canales y guía EPG..."
-                                        val request = OneTimeWorkRequestBuilder<TvhSyncWorker>().build()
-                                        val wm = WorkManager.getInstance(this@MainActivity)
-                                        wm.enqueue(request)
-                                        TvhSyncWorker.schedulePeriodicSync(this@MainActivity)
-
-                                        wm.getWorkInfoByIdLiveData(request.id).observe(this@MainActivity) { info ->
-                                            if (info != null && info.state.isFinished) {
+                                        server?.let { currentServer ->
+                                            isSyncing = true
+                                            syncMessage = "Iniciando búsqueda de canales..."
+                                            lifecycleScope.launch {
+                                                val (success, message) = sk.tvhclient.android.tif.TvhSyncManager.syncNow(
+                                                    context = this@MainActivity,
+                                                    server = currentServer,
+                                                    onProgress = { step -> syncMessage = step }
+                                                )
                                                 isSyncing = false
-                                                if (info.state == WorkInfo.State.SUCCEEDED) {
-                                                    syncMessage = "¡Canales y EPG sincronizados con éxito en Android TV!"
-                                                } else {
-                                                    syncMessage = "Fallo en la sincronización. Revisa la IP del servidor."
+                                                syncMessage = message
+                                                if (success) {
+                                                    sk.tvhclient.android.tif.TvhSyncWorker.schedulePeriodicSync(this@MainActivity)
                                                 }
                                             }
                                         }

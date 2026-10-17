@@ -8,10 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.LiveTv
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,11 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import sk.tvhclient.android.ui.ServerConfigScreen
 import sk.tvhclient.shared.Tvh
 import sk.tvhclient.shared.model.TvhServer
@@ -53,18 +50,21 @@ class TvInputSetupActivity : ComponentActivity() {
                     SetupScreen(
                         server = server,
                         onOpenConfig = { showConfig = true },
-                        onStartSync = { onDone ->
-                            val request = OneTimeWorkRequestBuilder<TvhSyncWorker>().build()
-                            val wm = WorkManager.getInstance(this)
-                            wm.enqueue(request)
-                            TvhSyncWorker.schedulePeriodicSync(this)
-
-                            wm.getWorkInfoByIdLiveData(request.id).observe(this) { info ->
-                                if (info != null && info.state.isFinished) {
-                                    setResult(Activity.RESULT_OK)
-                                    onDone(info.state == WorkInfo.State.SUCCEEDED)
+                        onStartSync = { onProgress, onDone ->
+                            server?.let { currentServer ->
+                                lifecycleScope.launch {
+                                    val (success, message) = TvhSyncManager.syncNow(
+                                        context = this@TvInputSetupActivity,
+                                        server = currentServer,
+                                        onProgress = onProgress
+                                    )
+                                    if (success) {
+                                        TvhSyncWorker.schedulePeriodicSync(this@TvInputSetupActivity)
+                                        setResult(Activity.RESULT_OK)
+                                    }
+                                    onDone(success, message)
                                 }
-                            }
+                            } ?: onDone(false, "No hay servidor configurado.")
                         },
                         onFinish = {
                             setResult(Activity.RESULT_OK)
@@ -81,31 +81,32 @@ class TvInputSetupActivity : ComponentActivity() {
 private fun SetupScreen(
     server: TvhServer?,
     onOpenConfig: () -> Unit,
-    onStartSync: (onDone: (Boolean) -> Unit) -> Unit,
+    onStartSync: (onProgress: (String) -> Unit, onDone: (Boolean, String) -> Unit) -> Unit,
     onFinish: () -> Unit
 ) {
     var isSyncing by remember { mutableStateOf(false) }
-    var syncCompleted by remember { mutableStateOf(false) }
+    var syncStatusText by remember { mutableStateOf("") }
+    var syncResult by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0B1220))
-            .padding(48.dp),
+            .padding(32.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.65f)
+                .fillMaxWidth(0.7f)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color(0xFF162032))
-                .padding(36.dp),
+                .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Box(
                 modifier = Modifier
-                    .size(64.dp)
+                    .size(60.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF0F766E)),
                 contentAlignment = Alignment.Center
@@ -114,11 +115,11 @@ private fun SetupScreen(
                     imageVector = Icons.Default.LiveTv,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(34.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text(
                 text = "Configuración de Live Channels",
@@ -127,81 +128,102 @@ private fun SetupScreen(
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = if (server != null) {
-                    "Servidor detectado: ${server.name} (${server.host}:${server.port})\nSincroniza tus canales y la guía EPG con el sistema de Android TV."
+                    "Servidor: ${server.name} (${server.host}:${server.port})"
                 } else {
                     "No se ha configurado ningún servidor Tvheadend."
                 },
                 color = Color(0xFF94A3B8),
                 fontSize = 14.sp,
-                lineHeight = 20.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
+            // In-Progress State
             if (isSyncing) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     CircularProgressIndicator(
                         color = Color(0xFF14B8A6),
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(28.dp),
                         strokeWidth = 3.dp
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Sincronizando canales y guía EPG...",
+                        text = syncStatusText.ifBlank { "Conectando con el servidor..." },
                         color = Color(0xFFE2E8F0),
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
                     )
                 }
-            } else if (syncCompleted) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = Color(0xFF34D399),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "¡Sincronización finalizada correctamente!",
-                        color = Color(0xFF34D399),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+            } else if (syncResult != null) {
+                val (success, message) = syncResult!!
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (success) Color(0xFF064E3B) else Color(0xFF7F1D1D))
+                        .padding(14.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (success) Icons.Default.CheckCircle else Icons.Default.Error,
+                            contentDescription = null,
+                            tint = if (success) Color(0xFF34D399) else Color(0xFFF87171),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = message,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (syncCompleted) {
+            // Action Buttons
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (syncResult?.first == true) {
                     Button(
                         onClick = onFinish,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F766E))
                     ) {
-                        Text("Cerrar y Ver Canales", color = Color.White)
+                        Icon(Icons.Default.Check, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Finalizar y Ver Canales", color = Color.White)
                     }
                 } else {
                     Button(
                         onClick = {
                             isSyncing = true
-                            onStartSync { success ->
-                                isSyncing = false
-                                if (success) {
-                                    syncCompleted = true
+                            syncResult = null
+                            syncStatusText = "Iniciando búsqueda de canales..."
+                            onStartSync(
+                                { progress -> syncStatusText = progress },
+                                { success, msg ->
+                                    isSyncing = false
+                                    syncResult = Pair(success, msg)
                                 }
-                            }
+                            )
                         },
                         enabled = !isSyncing && server != null,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F766E))
                     ) {
                         Icon(Icons.Default.Sync, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Iniciar Sincronización", color = Color.White)
+                        Text(if (isSyncing) "Sincronizando..." else "Buscar y Sincronizar Canales", color = Color.White)
                     }
 
                     OutlinedButton(
