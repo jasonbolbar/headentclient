@@ -25,6 +25,26 @@ class TvhApi(private val server: TvhServer) {
         return conn
     }
 
+    fun testConnection(): Pair<Boolean, String> {
+        try {
+            val conn = openConnection("/api/serverinfo")
+            val code = conn.responseCode
+            if (code == 200) {
+                val text = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(text)
+                val serverName = json.optString("name", "Tvheadend")
+                val version = json.optString("version", "")
+                return Pair(true, "Conectado exitosamente: $serverName ($version)")
+            } else if (code == 401) {
+                return Pair(false, "Error 401: Usuario o contraseña incorrectos")
+            } else {
+                return Pair(false, "Respuesta del servidor: Código HTTP $code")
+            }
+        } catch (e: Exception) {
+            return Pair(false, "No se pudo conectar: ${e.localizedMessage ?: e.message}")
+        }
+    }
+
     fun channels(): List<Channel> {
         val conn = openConnection("/api/channel/grid?start=0&limit=9999")
         try {

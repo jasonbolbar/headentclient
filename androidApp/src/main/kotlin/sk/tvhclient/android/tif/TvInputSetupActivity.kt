@@ -5,34 +5,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,42 +24,54 @@ import androidx.compose.ui.unit.sp
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import sk.tvhclient.android.ui.ServerConfigScreen
 import sk.tvhclient.shared.Tvh
+import sk.tvhclient.shared.model.TvhServer
 
-/**
- * Setup Activity launched by Android TV when configuring Headent Client as an input
- * source in Live Channels ("Canales de TV en directo").
- */
 class TvInputSetupActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val server = Tvh.store.active()
-
         setContent {
             MaterialTheme {
-                SetupScreen(
-                    serverName = server?.name ?: "Tvheadend",
-                    hasServer = server != null,
-                    onStartSync = { onDone ->
-                        val request = OneTimeWorkRequestBuilder<TvhSyncWorker>().build()
-                        val wm = WorkManager.getInstance(this)
-                        wm.enqueue(request)
-                        TvhSyncWorker.schedulePeriodicSync(this)
+                var server by remember { mutableStateOf(Tvh.store.active()) }
+                var showConfig by remember { mutableStateOf(server == null) }
 
-                        wm.getWorkInfoByIdLiveData(request.id).observe(this) { info ->
-                            if (info != null && info.state.isFinished) {
-                                setResult(Activity.RESULT_OK)
-                                onDone(info.state == WorkInfo.State.SUCCEEDED)
+                if (showConfig) {
+                    ServerConfigScreen(
+                        initialServer = server,
+                        onServerSaved = { savedServer ->
+                            server = savedServer
+                            showConfig = false
+                        },
+                        onCancel = if (server != null) {
+                            { showConfig = false }
+                        } else null
+                    )
+                } else {
+                    SetupScreen(
+                        server = server,
+                        onOpenConfig = { showConfig = true },
+                        onStartSync = { onDone ->
+                            val request = OneTimeWorkRequestBuilder<TvhSyncWorker>().build()
+                            val wm = WorkManager.getInstance(this)
+                            wm.enqueue(request)
+                            TvhSyncWorker.schedulePeriodicSync(this)
+
+                            wm.getWorkInfoByIdLiveData(request.id).observe(this) { info ->
+                                if (info != null && info.state.isFinished) {
+                                    setResult(Activity.RESULT_OK)
+                                    onDone(info.state == WorkInfo.State.SUCCEEDED)
+                                }
                             }
+                        },
+                        onFinish = {
+                            setResult(Activity.RESULT_OK)
+                            finish()
                         }
-                    },
-                    onFinish = {
-                        setResult(Activity.RESULT_OK)
-                        finish()
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -86,8 +79,8 @@ class TvInputSetupActivity : ComponentActivity() {
 
 @Composable
 private fun SetupScreen(
-    serverName: String,
-    hasServer: Boolean,
+    server: TvhServer?,
+    onOpenConfig: () -> Unit,
     onStartSync: (onDone: (Boolean) -> Unit) -> Unit,
     onFinish: () -> Unit
 ) {
@@ -137,10 +130,10 @@ private fun SetupScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = if (hasServer) {
-                    "Servidor detectado: $serverName\nSincroniza tus canales y la guía EPG con el sistema de Android TV."
+                text = if (server != null) {
+                    "Servidor detectado: ${server.name} (${server.host}:${server.port})\nSincroniza tus canales y la guía EPG con el sistema de Android TV."
                 } else {
-                    "Configura tu servidor Tvheadend en la app principal antes de sincronizar."
+                    "No se ha configurado ningún servidor Tvheadend."
                 },
                 color = Color(0xFF94A3B8),
                 fontSize = 14.sp,
@@ -169,44 +162,56 @@ private fun SetupScreen(
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = Color(0xFF10B981),
+                        tint = Color(0xFF34D399),
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "¡Sincronización completada con éxito!",
-                        color = Color(0xFF10B981),
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
+                        text = "¡Sincronización finalizada correctamente!",
+                        color = Color(0xFF34D399),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
+            }
 
-                Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-                Button(
-                    onClick = onFinish,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF14B8A6)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth(0.5f)
-                ) {
-                    Text(text = "Finalizar", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            } else {
-                Button(
-                    onClick = {
-                        isSyncing = true
-                        onStartSync { success ->
-                            isSyncing = false
-                            syncCompleted = success
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF14B8A6)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth(0.6f)
-                ) {
-                    Icon(imageVector = Icons.Default.Sync, contentDescription = null, tint = Color.Black)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Iniciar Sincronización", color = Color.Black, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (syncCompleted) {
+                    Button(
+                        onClick = onFinish,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F766E))
+                    ) {
+                        Text("Cerrar y Ver Canales", color = Color.White)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            isSyncing = true
+                            onStartSync { success ->
+                                isSyncing = false
+                                if (success) {
+                                    syncCompleted = true
+                                }
+                            }
+                        },
+                        enabled = !isSyncing && server != null,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F766E))
+                    ) {
+                        Icon(Icons.Default.Sync, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Iniciar Sincronización", color = Color.White)
+                    }
+
+                    OutlinedButton(
+                        onClick = onOpenConfig,
+                        enabled = !isSyncing
+                    ) {
+                        Icon(Icons.Default.Settings, contentDescription = null, tint = Color(0xFF38BDF8))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (server == null) "Configurar Servidor" else "Cambiar Servidor", color = Color.White)
+                    }
                 }
             }
         }

@@ -2,23 +2,31 @@ package sk.tvhclient.android
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LiveTv
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import sk.tvhclient.android.tif.TvInputSetupActivity
+import sk.tvhclient.android.tif.TvhSyncWorker
+import sk.tvhclient.android.ui.ServerConfigScreen
 import sk.tvhclient.shared.Tvh
+import sk.tvhclient.shared.model.TvhServer
 
 class MainActivity : ComponentActivity() {
 
@@ -27,48 +35,200 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                val server = remember { Tvh.store.active() }
+                var server by remember { mutableStateOf(Tvh.store.active()) }
+                var showConfigScreen by remember { mutableStateOf(server == null) }
+                var isSyncing by remember { mutableStateOf(false) }
+                var syncMessage by remember { mutableStateOf<String?>(null) }
 
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF0F172A)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(32.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
+                if (showConfigScreen) {
+                    ServerConfigScreen(
+                        initialServer = server,
+                        onServerSaved = { savedServer ->
+                            server = savedServer
+                            showConfigScreen = false
+                            Toast.makeText(
+                                this,
+                                "Servidor ${savedServer.name} guardado correctamente",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            // Schedule periodic sync
+                            TvhSyncWorker.schedulePeriodicSync(this)
+                        },
+                        onCancel = if (server != null) {
+                            { showConfigScreen = false }
+                        } else null
+                    )
+                } else {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = Color(0xFF0F172A)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.LiveTv,
-                            contentDescription = "Headent Client",
-                            tint = Color(0xFF38BDF8),
-                            modifier = Modifier.size(72.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Headent Client",
-                            fontSize = 32.sp,
-                            color = Color.White
-                        )
-                        Text(
-                            text = if (server != null) "Servidor activo: ${server.name} (${server.host})" else "No hay servidor Tvheadend configurado",
-                            fontSize = 16.sp,
-                            color = Color(0xFF94A3B8),
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                        Spacer(modifier = Modifier.height(32.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Button(
-                                onClick = {
-                                    startActivity(Intent(this@MainActivity, TvInputSetupActivity::class.java))
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(36.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color(0xFF0284C7)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.Sync, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Sincronizar Canales TIF")
+                                Icon(
+                                    imageVector = Icons.Default.LiveTv,
+                                    contentDescription = "Headent Client",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(44.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "Headent Client",
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+
+                            Text(
+                                text = "Cliente nativo de Tvheadend para Android TV y Live Channels (TIF)",
+                                fontSize = 14.sp,
+                                color = Color(0xFF94A3B8),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(28.dp))
+
+                            // Active Server Card
+                            server?.let { currentServer ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(0.65f),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(20.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Dns,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF38BDF8)
+                                                )
+                                                Text(
+                                                    text = currentServer.name,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                    fontSize = 17.sp
+                                                )
+                                            }
+
+                                            Text(
+                                                text = "Activo",
+                                                color = Color(0xFF34D399),
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 12.sp,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(Color(0xFF064E3B))
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        Text(
+                                            text = "Dirección: ${currentServer.host}:${currentServer.port} (HTSP: ${currentServer.htspPort})",
+                                            color = Color(0xFF94A3B8),
+                                            fontSize = 13.sp
+                                        )
+
+                                        Text(
+                                            text = "Perfil de streaming: ${currentServer.profile} | Usuario: ${currentServer.user.ifBlank { "Sin credenciales" }}",
+                                            color = Color(0xFF64748B),
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            // Sync feedback message if any
+                            syncMessage?.let { msg ->
+                                Text(
+                                    text = msg,
+                                    color = Color(0xFF38BDF8),
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(bottom = 12.dp)
+                                )
+                            }
+
+                            // Action Buttons
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxWidth(0.65f)
+                            ) {
+                                // Sincronizar Canales TIF Button
+                                Button(
+                                    onClick = {
+                                        isSyncing = true
+                                        syncMessage = "Sincronizando canales y guía EPG..."
+                                        val request = OneTimeWorkRequestBuilder<TvhSyncWorker>().build()
+                                        val wm = WorkManager.getInstance(this@MainActivity)
+                                        wm.enqueue(request)
+                                        TvhSyncWorker.schedulePeriodicSync(this@MainActivity)
+
+                                        wm.getWorkInfoByIdLiveData(request.id).observe(this@MainActivity) { info ->
+                                            if (info != null && info.state.isFinished) {
+                                                isSyncing = false
+                                                if (info.state == WorkInfo.State.SUCCEEDED) {
+                                                    syncMessage = "¡Canales y EPG sincronizados con éxito en Android TV!"
+                                                } else {
+                                                    syncMessage = "Fallo en la sincronización. Revisa la IP del servidor."
+                                                }
+                                            }
+                                        }
+                                    },
+                                    enabled = !isSyncing,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                    modifier = Modifier.weight(1.3f)
+                                ) {
+                                    if (isSyncing) {
+                                        CircularProgressIndicator(
+                                            color = Color.White,
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Sincronizando...")
+                                    } else {
+                                        Icon(Icons.Default.Sync, contentDescription = null)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Sincronizar Canales TIF")
+                                    }
+                                }
+
+                                // Editar Servidor Button
+                                OutlinedButton(
+                                    onClick = { showConfigScreen = true },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.Settings, contentDescription = null, tint = Color(0xFF38BDF8))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Configurar Servidor", color = Color.White)
+                                }
                             }
                         }
                     }

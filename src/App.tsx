@@ -173,6 +173,13 @@ export default function App() {
   const [syncProgress, setSyncProgress] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncDone, setSyncDone] = useState(false);
+  const [serverHost, setServerHost] = useState('192.168.1.100');
+  const [serverPort, setServerPort] = useState('9981');
+  const [serverUser, setServerUser] = useState('');
+  const [serverPass, setServerPass] = useState('');
+  const [serverName, setServerName] = useState('Tvheadend Casa');
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
   const [showRemote, setShowRemote] = useState(true);
 
   const channel = SAMPLE_CHANNELS[currentChannelIndex];
@@ -765,19 +772,32 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Server Info Box */}
-              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-2">
+              {/* Server Info Box with Edit Button */}
+              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+                  <div className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span>Servidor Tvheadend Configurado</span>
+                  </div>
+                  <button
+                    onClick={() => setShowConfigModal(true)}
+                    className="px-3 py-1 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 text-xs font-medium rounded-lg border border-sky-500/30 transition flex items-center gap-1.5"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                    <span>Cambiar / Editar</span>
+                  </button>
+                </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Servidor Activo:</span>
-                  <span className="font-semibold text-white">Tvheadend Casa</span>
+                  <span className="text-slate-400">Nombre:</span>
+                  <span className="font-semibold text-white">{serverName}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-400">Dirección Host:</span>
-                  <span className="font-mono text-sky-300">192.168.1.100:9981</span>
+                  <span className="font-mono text-sky-300">{serverHost}:{serverPort}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Perfil de Reproducción:</span>
-                  <span className="font-mono text-emerald-400">pass (Transmisión Directa)</span>
+                  <span className="text-slate-400">Credenciales:</span>
+                  <span className="text-slate-300">{serverUser ? `Usuario: ${serverUser}` : 'Sin autenticación'}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-400">Base de Datos Destino:</span>
@@ -830,6 +850,109 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              {/* Server Config Modal */}
+              {showConfigModal && (
+                <div
+                  className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                  onClick={() => setShowConfigModal(false)}
+                >
+                  <div
+                    className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <Settings className="w-5 h-5 text-sky-400" />
+                        <h3 className="text-base font-bold text-white">Configurar Servidor Tvheadend</h3>
+                      </div>
+                      <button onClick={() => setShowConfigModal(false)} className="text-slate-400 hover:text-white">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <label className="text-slate-400 block mb-1">Nombre</label>
+                        <input
+                          type="text"
+                          value={serverName}
+                          onChange={(e) => setServerName(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="col-span-2">
+                          <label className="text-slate-400 block mb-1">Dirección IP / Host</label>
+                          <input
+                            type="text"
+                            value={serverHost}
+                            onChange={(e) => setServerHost(e.target.value)}
+                            placeholder="192.168.1.100"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:border-sky-500 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-slate-400 block mb-1">Puerto HTTP</label>
+                          <input
+                            type="text"
+                            value={serverPort}
+                            onChange={(e) => setServerPort(e.target.value)}
+                            placeholder="9981"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:border-sky-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-slate-400 block mb-1">Usuario (opcional)</label>
+                          <input
+                            type="text"
+                            value={serverUser}
+                            onChange={(e) => setServerUser(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-slate-400 block mb-1">Contraseña</label>
+                          <input
+                            type="password"
+                            value={serverPass}
+                            onChange={(e) => setServerPass(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:border-sky-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {testResult && (
+                        <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs">
+                          {testResult}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+                      <button
+                        onClick={() => {
+                          setTestResult(`Conexión exitosa a http://${serverHost}:${serverPort}/`);
+                          setTimeout(() => setTestResult(null), 3000);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition"
+                      >
+                        Probar Conexión
+                      </button>
+                      <button
+                        onClick={() => setShowConfigModal(false)}
+                        className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs font-bold text-white transition shadow-md shadow-sky-600/30"
+                      >
+                        Guardar Servidor
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
