@@ -54,13 +54,23 @@ class TvhTvInputService : TvInputService() {
                 add("--network-caching=1500")
                 add("--deinterlace=1")
                 add("--deinterlace-mode=blend")
+                add("--aspect-ratio=16:9")
+                add("--aout=android_audiotrack")
+                add("--spdif")
+                add("--audio-time-stretch")
             }
             libVLC = LibVLC(context, options)
             mediaPlayer = MediaPlayer(libVLC).apply {
                 setEventListener(this@TvhTvInputSession)
                 vlcVout.addCallback(this@TvhTvInputSession)
-                aspectRatio = null // Auto / fit
-                scale = 0f         // Fit to screen
+                aspectRatio = "16:9" // Force 16:9 widescreen to fill Android TV
+                scale = 0f          // Fit to screen window
+                setAudioOutput("android_audiotrack")
+                try {
+                    setAudioDigitalOutputEnabled(true)
+                } catch (e: Throwable) {
+                    Log.d(TAG, "Digital audio output configuration notice: ${e.message}")
+                }
             }
         }
 
@@ -78,10 +88,14 @@ class TvhTvInputService : TvInputService() {
                     vout.detachViews()
                     isSurfaceAttached = false
                 }
+                val dm = context.resources.displayMetrics
+                vout.setWindowSize(dm.widthPixels, dm.heightPixels)
                 vout.setVideoSurface(surface, null)
                 vout.attachViews()
                 isSurfaceAttached = true
-                Log.d(TAG, "Video Surface attached to libVLC.")
+                player.aspectRatio = "16:9"
+                player.scale = 0f
+                Log.d(TAG, "Video Surface attached to libVLC with window ${dm.widthPixels}x${dm.heightPixels} and 16:9 aspect ratio.")
             } else {
                 if (isSurfaceAttached) {
                     vout.detachViews()
@@ -120,7 +134,7 @@ class TvhTvInputService : TvInputService() {
                 profile = server.profile.ifBlank { "pass" }
             )
 
-            Log.d(TAG, "Playing live stream URL for channel $channelUuid")
+            Log.d(TAG, "Playing live stream URL for channel $channelUuid: $streamUrl")
             startPlayback(streamUrl)
             return true
         }
@@ -151,9 +165,14 @@ class TvhTvInputService : TvInputService() {
                     addOption(":network-caching=1500")
                     addOption(":clock-jitter=0")
                     addOption(":clock-synchro=0")
+                    addOption(":aspect-ratio=16:9")
+                    addOption(":spdif")
+                    addOption(":aout=android_audiotrack")
                 }
 
                 player.media = currentMedia
+                player.aspectRatio = "16:9"
+                player.scale = 0f
                 player.play()
             } catch (e: Exception) {
                 Log.e(TAG, "Error starting libVLC playback: ${e.message}", e)
@@ -168,17 +187,37 @@ class TvhTvInputService : TvInputService() {
         private fun updateTracks() {
             val player = mediaPlayer ?: return
             val trackInfoList = ArrayList<TvTrackInfo>()
+            val currentMedia = player.media
+
+            // Collect tracks from currentMedia
+            val mediaAudioTracks = mutableMapOf<Int, IMedia.Track>()
+            val mediaSubtitleTracks = mutableMapOf<Int, IMedia.Track>()
+            if (currentMedia != null) {
+                for (i in 0 until currentMedia.trackCount) {
+                    val track = currentMedia.getTrack(i)
+                    if (track != null) {
+                        if (track.type == IMedia.Track.Type.Audio) {
+                            mediaAudioTracks[track.id] = track
+                        } else if (track.type == IMedia.Track.Type.Text) {
+                            mediaSubtitleTracks[track.id] = track
+                        }
+                    }
+                }
+            }
 
             // 1. Audio Tracks
             val audioTracks = player.audioTracks ?: emptyArray()
             val currentAudioId = player.audioTrack
 
-            for (track in audioTracks) {
+            for ((idx, track) in audioTracks.withIndex()) {
                 if (track.id < 0) continue
-                val lang = extractLanguage(track.name)
+                val mediaTrack = mediaAudioTracks[track.id]
+                val (lang, desc) = resolveAudioLanguageAndDescription(idx, track.name, mediaTrack)
                 val builder = TvTrackInfo.Builder(TvTrackInfo.TYPE_AUDIO, track.id.toString())
-                    .setLanguage(lang)
-                    .setDescription(track.name ?: "Audio ${track.id}")
+                if (!lang.isNullOrBlank() && lang != "und") {
+                    builder.setLanguage(lang)
+                }
+                builder.setDescription(desc)
                 trackInfoList.add(builder.build())
             }
 
@@ -186,17 +225,19 @@ class TvhTvInputService : TvInputService() {
             val spuTracks = player.spuTracks ?: emptyArray()
             val currentSpuId = player.spuTrack
 
-            for (track in spuTracks) {
+            for ((idx, track) in spuTracks.withIndex()) {
                 if (track.id < 0) continue
-                val lang = extractLanguage(track.name)
+                val mediaTrack = mediaSubtitleTracks[track.id]
+                val (lang, desc) = resolveSubtitleLanguageAndDescription(idx, track.name, mediaTrack)
                 val builder = TvTrackInfo.Builder(TvTrackInfo.TYPE_SUBTITLE, track.id.toString())
-                    .setLanguage(lang)
-                    .setDescription(track.name ?: "Subtitles ${track.id}")
+                if (!lang.isNullOrBlank() && lang != "und") {
+                    builder.setLanguage(lang)
+                }
+                builder.setDescription(desc)
                 trackInfoList.add(builder.build())
             }
 
             // 3. Video Track
-            val currentMedia = player.media
             if (currentMedia != null) {
                 for (i in 0 until currentMedia.trackCount) {
                     val track = currentMedia.getTrack(i)
@@ -229,11 +270,94 @@ class TvhTvInputService : TvInputService() {
             }
         }
 
-        private fun extractLanguage(name: String?): String {
-            if (name.isNullOrBlank()) return "und"
-            val regex = Regex("\\[([a-zA-Z]{2,3})\\]")
-            val match = regex.find(name)
-            return match?.groupValues?.get(1)?.lowercase() ?: "und"
+        private fun resolveAudioLanguageAndDescription(
+            index: Int,
+            rawName: String?,
+            mediaTrack: IMedia.Track?
+        ): Pair<String?, String> {
+            val name = rawName?.trim() ?: ""
+            val nameLower = name.lowercase()
+            val mediaLang = mediaTrack?.language?.trim()?.lowercase()
+
+            val langCode = when {
+                !mediaLang.isNullOrBlank() && mediaLang != "und" -> mediaLang
+                nameLower.contains("spa") || nameLower.contains("esp") || nameLower.contains("castellano") -> "spa"
+                nameLower.contains("qaa") || nameLower.contains("vo") || nameLower.contains("orig") -> "qaa"
+                nameLower.contains("eng") || nameLower.contains("ing") -> "eng"
+                nameLower.contains("cat") || nameLower.contains("val") -> "cat"
+                nameLower.contains("eus") || nameLower.contains("vas") -> "eus"
+                nameLower.contains("glg") || nameLower.contains("gal") -> "glg"
+                nameLower.contains("fra") || nameLower.contains("fre") -> "fra"
+                nameLower.contains("deu") || nameLower.contains("ger") -> "deu"
+                nameLower.contains("ita") -> "ita"
+                nameLower.contains("por") -> "por"
+                index == 0 -> "spa" // Default 1st audio track on European/Spanish TV
+                index == 1 -> "qaa" // Default 2nd audio track on European/Spanish TV (V.O.)
+                else -> null
+            }
+
+            val friendlyName = when (langCode) {
+                "spa", "es" -> "Español"
+                "qaa" -> "Versión Original (V.O.)"
+                "eng", "en" -> "Inglés"
+                "cat" -> "Catalán"
+                "eus" -> "Euskera"
+                "glg" -> "Gallego"
+                "fra", "fr" -> "Francés"
+                "deu", "de" -> "Alemán"
+                "ita", "it" -> "Italiano"
+                "por", "pt" -> "Portugués"
+                else -> name.ifBlank { "Pista de audio ${index + 1}" }
+            }
+
+            val channelsInfo = when ((mediaTrack as? IMedia.AudioTrack)?.channels) {
+                6 -> " (5.1)"
+                2 -> " (Estéreo)"
+                1 -> " (Mono)"
+                else -> ""
+            }
+
+            val finalDescription = if (friendlyName.contains("5.1") || friendlyName.contains("Estéreo")) {
+                friendlyName
+            } else {
+                "$friendlyName$channelsInfo"
+            }
+
+            return Pair(langCode, finalDescription)
+        }
+
+        private fun resolveSubtitleLanguageAndDescription(
+            index: Int,
+            rawName: String?,
+            mediaTrack: IMedia.Track?
+        ): Pair<String?, String> {
+            val name = rawName?.trim() ?: ""
+            val nameLower = name.lowercase()
+            val mediaLang = mediaTrack?.language?.trim()?.lowercase()
+
+            val langCode = when {
+                !mediaLang.isNullOrBlank() && mediaLang != "und" -> mediaLang
+                nameLower.contains("spa") || nameLower.contains("esp") || nameLower.contains("castellano") -> "spa"
+                nameLower.contains("eng") || nameLower.contains("ing") -> "eng"
+                nameLower.contains("cat") || nameLower.contains("val") -> "cat"
+                nameLower.contains("eus") || nameLower.contains("vas") -> "eus"
+                nameLower.contains("glg") || nameLower.contains("gal") -> "glg"
+                index == 0 -> "spa"
+                else -> null
+            }
+
+            val isHardOfHearing = nameLower.contains("sord") || nameLower.contains("teletexto") || nameLower.contains("888") || nameLower.contains("cc")
+            val baseName = when (langCode) {
+                "spa", "es" -> "Español"
+                "eng", "en" -> "Inglés"
+                "cat" -> "Catalán"
+                "eus" -> "Euskera"
+                "glg" -> "Gallego"
+                else -> name.ifBlank { "Subtítulo ${index + 1}" }
+            }
+
+            val finalDescription = if (isHardOfHearing) "$baseName (Para personas sordas)" else baseName
+            return Pair(langCode, finalDescription)
         }
 
         override fun onSelectTrack(type: Int, trackId: String?): Boolean {
@@ -287,6 +411,10 @@ class TvhTvInputService : TvInputService() {
             when (event?.type) {
                 MediaPlayer.Event.Playing -> {
                     Log.i(TAG, "libVLC MediaPlayer is Playing. Notifying video available.")
+                    mediaPlayer?.let { p ->
+                        p.aspectRatio = "16:9"
+                        p.scale = 0f
+                    }
                     notifyVideoAvailable()
                     updateTracks()
                 }
